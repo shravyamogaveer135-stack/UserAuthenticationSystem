@@ -1,8 +1,9 @@
-cconst express = require('express');
+const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -10,28 +11,28 @@ app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
-// Determine path for SQLite database (uses /tmp on Vercel)
-const dbPath = process.env.VERCEL 
-  ? path.join('/tmp', 'auth.db') 
-  : path.join(__dirname, 'auth.db');
+// Use /tmp directory for serverless environments (Vercel)
+const dbDir = process.env.VERCEL ? '/tmp' : __dirname;
+const dbPath = path.join(dbDir, 'auth.db');
 
-// Initialize SQLite Database
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) console.error('Database connection error:', err.message);
   else console.log('Connected to SQLite database at:', dbPath);
 });
 
 // Create Users table
-db.run(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL
-  )
-`);
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL
+    )
+  `);
+});
 
-// Middleware: Authentication Guard for Protected Routes
+// Middleware: Authentication Guard
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -89,7 +90,6 @@ app.post('/auth/login', (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) return res.status(401).json({ error: 'Invalid email or password' });
 
-    // Generate JWT Token (Session management)
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
 
     res.json({ message: 'Login successful', token });
@@ -137,7 +137,9 @@ app.get('/', (req, res) => {
   res.json({ message: 'User Authentication System API is running' });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+module.exports = app;
+
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
