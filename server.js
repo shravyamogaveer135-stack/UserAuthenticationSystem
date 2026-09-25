@@ -2,25 +2,23 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const path = require('path');
-const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey_change_this_in_production';
 
-// Use /tmp directory for serverless environments (Vercel)
-const dbDir = process.env.VERCEL ? '/tmp' : __dirname;
-const dbPath = path.join(dbDir, 'auth.db');
-
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) console.error('Database connection error:', err.message);
-  else console.log('Connected to SQLite database at:', dbPath);
+// Use in-memory SQLite database to avoid file system read/write errors on Vercel
+const db = new sqlite3.Database(':memory:', (err) => {
+  if (err) {
+    console.error('Database connection error:', err.message);
+  } else {
+    console.log('Connected to SQLite in-memory database.');
+  }
 });
 
-// Create Users table
+// Initialize database schema
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
@@ -48,7 +46,12 @@ const authenticateToken = (req, res, next) => {
 
 // --- AUTHENTICATION ROUTES ---
 
-// 1. SIGN-UP / REGISTER
+// 1. Root Route
+app.get('/', (req, res) => {
+  res.json({ message: 'User Authentication System API is running' });
+});
+
+// 2. SIGN-UP / REGISTER
 app.post('/auth/register', async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -74,7 +77,7 @@ app.post('/auth/register', async (req, res) => {
   }
 });
 
-// 2. LOGIN
+// 3. LOGIN
 app.post('/auth/login', (req, res) => {
   const { email, password } = req.body;
 
@@ -96,7 +99,7 @@ app.post('/auth/login', (req, res) => {
   });
 });
 
-// 3. PASSWORD RESET
+// 4. PASSWORD RESET
 app.post('/auth/reset-password', async (req, res) => {
   const { email, newPassword } = req.body;
 
@@ -119,7 +122,7 @@ app.post('/auth/reset-password', async (req, res) => {
   }
 });
 
-// 4. PROTECTED ROUTE
+// 5. PROTECTED PROFILE ROUTE
 app.get('/auth/profile', authenticateToken, (req, res) => {
   res.json({
     message: 'Welcome to your protected profile!',
@@ -127,19 +130,16 @@ app.get('/auth/profile', authenticateToken, (req, res) => {
   });
 });
 
-// 5. LOGOUT
+// 6. LOGOUT
 app.post('/auth/logout', (req, res) => {
   res.json({ message: 'Logged out successfully. Please remove your access token.' });
 });
 
-// Base Route
-app.get('/', (req, res) => {
-  res.json({ message: 'User Authentication System API is running' });
-});
-
+// Export app for Vercel Serverless Function
 module.exports = app;
 
-if (!process.env.VERCEL) {
+// Local development listener
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
