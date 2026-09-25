@@ -1,7 +1,8 @@
-const express = require('express');
+cconst express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -9,10 +10,15 @@ app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
+// Determine path for SQLite database (uses /tmp on Vercel)
+const dbPath = process.env.VERCEL 
+  ? path.join('/tmp', 'auth.db') 
+  : path.join(__dirname, 'auth.db');
+
 // Initialize SQLite Database
-const db = new sqlite3.Database('./auth.db', (err) => {
+const db = new sqlite3.Database(dbPath, (err) => {
   if (err) console.error('Database connection error:', err.message);
-  else console.log('Connected to SQLite database.');
+  else console.log('Connected to SQLite database at:', dbPath);
 });
 
 // Create Users table
