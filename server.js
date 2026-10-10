@@ -73,25 +73,33 @@ app.post('/auth/register', async (req, res) => {
 });
 
 // 3. LOGIN
-app.post('/auth/login', (req, res) => {
+app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
-
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
-  const sql = `SELECT * FROM users WHERE email = ?`;
-  db.get(sql, [email], async (err, user) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) return res.status(401).json({ error: 'Invalid email or password' });
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign(
+      { id: user._id, email: user.email }, 
+      process.env.JWT_SECRET || 'secret', 
+      { expiresIn: '1h' }
+    );
 
     res.json({ message: 'Login successful', token });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 4. PASSWORD RESET
