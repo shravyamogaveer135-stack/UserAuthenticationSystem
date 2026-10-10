@@ -1,5 +1,5 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
@@ -9,14 +9,9 @@ app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey_change_this_in_production';
 
-// Use in-memory SQLite database to avoid file system read/write errors on Vercel
-const db = new sqlite3.Database(':memory:', (err) => {
-  if (err) {
-    console.error('Database connection error:', err.message);
-  } else {
-    console.log('Connected to SQLite in-memory database.');
-  }
-});
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB Connected'))
+  .catch(err => console.log('MongoDB connection error:', err));
 
 // Initialize database schema
 db.serialize(() => {
